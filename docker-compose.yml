@@ -1,0 +1,82 @@
+version: '3'
+services:
+
+    #PHP Service
+    fleet_app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        container_name: fleet_app
+        restart: unless-stopped
+        tty: true
+        environment:
+            SERVICE_NAME: fleet_app
+            SERVICE_TAGS: dev
+        working_dir: /var/www/fleet
+        volumes:
+            - ./:/var/www/fleet
+            - ./php/local.ini:/usr/local/etc/php/conf.d/local.ini
+        networks:
+            - app-network
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
+
+    #Nginx Service
+    fleet_webserver:
+        image: nginx:alpine
+        container_name: fleet_webserver
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "80:80"
+            - "443:443"
+        volumes:
+            - ./:/var/www/fleet
+            - ./nginx/conf.d/:/etc/nginx/conf.d/
+        networks:
+            - app-network
+
+    #MySQL Service
+    fleet_db:
+        image: mysql:5.7
+        container_name: fleet_db
+        restart: unless-stopped
+        tty: true
+        ports:
+            - "3306:3306"
+        environment:
+            MYSQL_DATABASE: laravel
+            MYSQL_ROOT_PASSWORD: mysql_root_password
+            SERVICE_TAGS: dev
+            SERVICE_NAME: fleet_db
+        volumes:
+            - dbdata:/var/lib/mysql/
+            - ./mysql/my.cnf:/etc/mysql/my.cnf
+        networks:
+            - app-network
+
+    fleet_phpmyadmin:
+        image: phpmyadmin/phpmyadmin
+        container_name: fleet_phpmyadmin
+        ports:
+            - "8888:80"
+        depends_on:
+            - fleet_db
+        environment:
+            PMA_HOST: fleet_db
+            PMA_USER: root
+            PMA_PASSWORD: mysql_root_password
+            # - PMA_ARBITRARY=1
+        restart: unless-stopped
+        networks:
+            - app-network
+
+#Docker Networks
+networks:
+    app-network:
+        driver: bridge
+
+#Volumes
+volumes:
+    dbdata:
+        driver: local
